@@ -37,7 +37,7 @@ else
         </div>
         <div class="mb-3">
             <label class="form-label" for="profile-mmr">ПТС</label>
-            <input id="profile-mmr" class="form-control" placeholder="например 4500" @bind="_edit.MmRRange" />
+            <input id="profile-mmr" class="form-control" type="number" min="1" step="1" placeholder="например 4500" @bind="_edit.Mmr" />
         </div>
         <div class="row g-2 mb-3">
             @RoleSelect("Роль 1", _edit.RolePriority1, v => _edit.RolePriority1 = v)
@@ -77,7 +77,7 @@ else
                 Id = profile.Id,
                 RealName = profile.RealName,
                 TgNick = profile.TgTag.StartsWith('@') ? profile.TgTag[1..] : profile.TgTag,
-                MmRRange = profile.MmRRange,
+                Mmr = profile.Mmr,
                 RolePriority1 = profile.RolePriority1 is >= 1 and <= 5 ? profile.RolePriority1 : 1,
                 RolePriority2 = profile.RolePriority2 is >= 1 and <= 5 ? profile.RolePriority2 : 2,
                 RolePriority3 = profile.RolePriority3 is >= 1 and <= 5 ? profile.RolePriority3 : 3,

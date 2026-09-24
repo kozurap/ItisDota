@@ -12,7 +12,7 @@ public static class PlayerMappingExtensions
             Id = player.Id,
             RealName = player.RealName,
             TgTag = player.TgTag,
-            MmRRange = player.MmRRange,
+            Mmr = player.Mmr,
             RolePriority1 = player.RolePriority1,
             RolePriority2 = player.RolePriority2,
             RolePriority3 = player.RolePriority3,
