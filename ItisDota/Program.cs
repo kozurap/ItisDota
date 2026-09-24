@@ -5,11 +5,11 @@ using ItisDota.Data.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddRazorPages();
-builder.Services.AddAntiforgery(options =>
-{
-    options.HeaderName = "RequestVerificationToken";
-});
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents()
+    // JSON импорта целиком уходит одним hub-сообщением (textarea и drag-n-drop),
+    // дефолтных 32 КБ не хватает на лобби из нескольких десятков игроков.
+    .AddHubOptions(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -18,6 +18,7 @@ builder.Services.AddScoped<IPlayerRepository, PlayerRepository>();
 builder.Services.AddScoped<IAppSettingRepository, AppSettingRepository>();
 builder.Services.AddScoped<PlayerImportService>();
 builder.Services.AddScoped<PromptService>();
+builder.Services.AddSingleton<PromptScope>();
 
 var app = builder.Build();
 
@@ -25,15 +26,18 @@ await InitializeDatabaseAsync(app.Services);
 
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error");
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseAuthorization();
+app.UseAntiforgery();
 app.MapStaticAssets();
-app.MapRazorPages().WithStaticAssets();
+app.MapRazorComponents<ItisDota.Components.App>()
+    .AddInteractiveServerRenderMode()
+    .WithStaticAssets();
 
 app.Run();
 
