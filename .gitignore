@@ -12,5 +12,6 @@ Thumbs.db
 *.log
 .env
 .env.*
+.superdesign/tmp/
 secrets.json
 appsettings.*.local.json
