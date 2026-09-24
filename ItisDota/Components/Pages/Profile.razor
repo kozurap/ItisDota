@@ -23,6 +23,7 @@
 else
 {
     <div class="col-lg-6">
+        <div class="app-card">
         <div class="mb-3">
             <label class="form-label" for="profile-name">Имя</label>
             <input id="profile-name" class="form-control" @bind="_edit.RealName" />
@@ -48,6 +49,7 @@ else
         </div>
         <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="SaveAsync">Сохранить профиль</button>
         <a class="btn btn-link" href="groups">Мои группы</a>
+        </div>
     </div>
 }
 

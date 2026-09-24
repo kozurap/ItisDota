@@ -9,14 +9,16 @@
 
 <PageTitle>Регистрация</PageTitle>
 
-<h1 class="h3 mb-3">Регистрация</h1>
+<div class="col-lg-5">
+    <div class="app-card">
+        <h1 class="h3 mb-3">Регистрация</h1>
 
 @if (!string.IsNullOrEmpty(_error))
 {
     <div class="alert alert-danger" role="alert">@_error</div>
 }
 
-<EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="register" method="post" Enhance="false" class="col-lg-5">
+<EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="register" method="post" Enhance="false">
     <DataAnnotationsValidator />
     <div class="mb-3">
         <label class="form-label" for="register-username">Имя пользователя</label>
@@ -40,6 +42,8 @@
     <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
     <a class="btn btn-link" href="login" data-enhance-nav="false">Вход</a>
 </EditForm>
+    </div>
+</div>
 
 @code {
     [SupplyParameterFromForm]
