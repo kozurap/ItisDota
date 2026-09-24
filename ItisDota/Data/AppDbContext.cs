@@ -22,7 +22,6 @@ public class AppDbContext : DbContext
             entity.Property(p => p.KeycloakUserId).HasMaxLength(100).IsRequired();
             entity.Property(p => p.RealName).HasMaxLength(200).IsRequired();
             entity.Property(p => p.TgTag).HasMaxLength(100).IsRequired();
-            entity.Property(p => p.MmRRange).HasMaxLength(50).IsRequired();
         });
 
         modelBuilder.Entity<PlayerGroup>(entity =>

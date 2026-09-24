@@ -41,7 +41,7 @@ public class PlayerRepository : IPlayerRepository
 
         existing.RealName = player.RealName;
         existing.TgTag = player.TgTag;
-        existing.MmRRange = player.MmRRange;
+        existing.Mmr = player.Mmr;
         existing.RolePriority1 = player.RolePriority1;
         existing.RolePriority2 = player.RolePriority2;
         existing.RolePriority3 = player.RolePriority3;

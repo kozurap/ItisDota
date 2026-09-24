@@ -16,7 +16,7 @@ public class ProfileService
 
     public static bool IsComplete(PlayerDto profile)
     {
-        return !string.IsNullOrWhiteSpace(profile.MmRRange)
+        return profile.Mmr > 0
                && IsRole(profile.RolePriority1)
                && IsRole(profile.RolePriority2)
                && IsRole(profile.RolePriority3)
@@ -48,7 +48,7 @@ public class ProfileService
                 KeycloakUserId = keycloakUserId,
                 RealName = realName.Trim(),
                 TgTag = tgTag,
-                MmRRange = string.Empty
+                Mmr = 0
             },
             cancellationToken);
     }
@@ -73,7 +73,6 @@ public class ProfileService
             ?? throw new InvalidOperationException("Профиль не найден.");
 
         var realName = edit.RealName.Trim();
-        var mmr = edit.MmRRange.Trim();
         var tgTag = NormalizeTgTag(edit.TgNick);
 
         if (string.IsNullOrWhiteSpace(realName))
@@ -81,9 +80,9 @@ public class ProfileService
             throw new InvalidOperationException("Имя не может быть пустым.");
         }
 
-        if (string.IsNullOrWhiteSpace(mmr))
+        if (edit.Mmr <= 0)
         {
-            throw new InvalidOperationException("ПТС не может быть пустым.");
+            throw new InvalidOperationException("ПТС должен быть положительным числом.");
         }
 
         ValidateRole(edit.RolePriority1, 1);
@@ -99,7 +98,7 @@ public class ProfileService
 
         player.RealName = realName;
         player.TgTag = tgTag;
-        player.MmRRange = mmr;
+        player.Mmr = edit.Mmr;
         player.RolePriority1 = edit.RolePriority1;
         player.RolePriority2 = edit.RolePriority2;
         player.RolePriority3 = edit.RolePriority3;

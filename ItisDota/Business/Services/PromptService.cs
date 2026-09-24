@@ -14,7 +14,7 @@ public class PromptService
 
     public static string FormatPlayerLine(PlayerDto player)
     {
-        return $"{player.RealName} ({player.TgTag}) — MMR: {player.MmRRange}; приоритеты: " +
+        return $"{player.RealName} ({player.TgTag}) — MMR: {player.Mmr}; приоритеты: " +
                $"1→{player.RolePriority1}, 2→{player.RolePriority2}, 3→{player.RolePriority3}, " +
                $"4→{player.RolePriority4}, 5→{player.RolePriority5}";
     }
