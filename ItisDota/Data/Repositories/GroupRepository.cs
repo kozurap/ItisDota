@@ -114,4 +114,18 @@ public class GroupRepository : IGroupRepository
 
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task SetReadyAsync(
+        int groupId,
+        int playerId,
+        bool isReady,
+        CancellationToken cancellationToken = default)
+    {
+        var member = await _db.GroupMembers
+            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.PlayerId == playerId, cancellationToken)
+            ?? throw new InvalidOperationException("Вы не состоите в этой группе.");
+
+        member.IsReady = isReady;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
 }

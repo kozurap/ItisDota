@@ -37,3 +37,24 @@ export async function copyText(text) {
 export function confirmAction(message) {
     return confirm(message);
 }
+
+let leaveHandler = null;
+
+export function watchRoomLeave(groupId) {
+    clearRoomLeave();
+    leaveHandler = () => {
+        const url = new URL(`groups/${groupId}/not-ready`, document.baseURI).toString();
+        const sent = navigator.sendBeacon(url);
+        if (!sent) {
+            fetch(url, { method: "POST", keepalive: true, credentials: "same-origin" });
+        }
+    };
+    window.addEventListener("pagehide", leaveHandler);
+}
+
+export function clearRoomLeave() {
+    if (leaveHandler) {
+        window.removeEventListener("pagehide", leaveHandler);
+        leaveHandler = null;
+    }
+}
