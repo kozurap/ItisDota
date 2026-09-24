@@ -13,6 +13,7 @@ public static class PlayerMappingExtensions
             RealName = player.RealName,
             TgTag = player.TgTag,
             Mmr = player.Mmr,
+            SteamFriendId = player.SteamFriendId,
             RolePriority1 = player.RolePriority1,
             RolePriority2 = player.RolePriority2,
             RolePriority3 = player.RolePriority3,

@@ -25,6 +25,10 @@ else
     <div class="col-lg-6">
         <div class="app-card">
         <div class="mb-3">
+            <label class="form-label" for="profile-login">Логин</label>
+            <input id="profile-login" class="form-control" value="@_login" disabled />
+        </div>
+        <div class="mb-3">
             <label class="form-label" for="profile-name">Имя</label>
             <input id="profile-name" class="form-control" @bind="_edit.RealName" />
         </div>
@@ -39,6 +43,10 @@ else
         <div class="mb-3">
             <label class="form-label" for="profile-mmr">ПТС</label>
             <input id="profile-mmr" class="form-control" type="number" min="1" step="1" placeholder="например 4500" @bind="_edit.Mmr" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-steam">Цифры в стиме</label>
+            <input id="profile-steam" class="form-control" inputmode="numeric" placeholder="необязательно" @bind="_steamDigits" />
         </div>
         <div class="row g-2 mb-3">
             @RoleSelect("Роль 1", _edit.RolePriority1, v => _edit.RolePriority1 = v)
@@ -58,6 +66,8 @@ else
     private Task<AuthenticationState>? AuthenticationState { get; set; }
 
     private PlayerEditDto? _edit;
+    private string _login = "";
+    private string _steamDigits = "";
     private string? _statusMessage;
     private string? _errorMessage;
     private bool _busy;
@@ -66,7 +76,10 @@ else
     {
         try
         {
-            var userId = await CurrentUserIdAsync();
+            var state = await AuthenticationState!;
+            _login = state.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "";
+            var userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? throw new InvalidOperationException("Не удалось определить пользователя.");
             var profile = await Scopes.UseAsync<ProfileService, PlayerDto?>(s => s.GetAsync(userId));
             if (profile is null)
             {
@@ -80,12 +93,14 @@ else
                 RealName = profile.RealName,
                 TgNick = profile.TgTag.StartsWith('@') ? profile.TgTag[1..] : profile.TgTag,
                 Mmr = profile.Mmr,
+                SteamFriendId = profile.SteamFriendId,
                 RolePriority1 = profile.RolePriority1 is >= 1 and <= 5 ? profile.RolePriority1 : 1,
                 RolePriority2 = profile.RolePriority2 is >= 1 and <= 5 ? profile.RolePriority2 : 2,
                 RolePriority3 = profile.RolePriority3 is >= 1 and <= 5 ? profile.RolePriority3 : 3,
                 RolePriority4 = profile.RolePriority4 is >= 1 and <= 5 ? profile.RolePriority4 : 4,
                 RolePriority5 = profile.RolePriority5 is >= 1 and <= 5 ? profile.RolePriority5 : 5
             };
+            _steamDigits = profile.SteamFriendId?.ToString() ?? "";
         }
         catch (Exception ex)
         {
@@ -105,8 +120,15 @@ else
         _busy = true;
         try
         {
+            if (!TryParseSteamDigits(_steamDigits, out var steamFriendId))
+            {
+                _errorMessage = "Цифры в стиме — целое число или пустое поле.";
+                return;
+            }
+
             var userId = await CurrentUserIdAsync();
             var edit = _edit;
+            edit.SteamFriendId = steamFriendId;
             await Scopes.UseAsync<ProfileService>(s => s.SaveAsync(userId, edit));
             _statusMessage = "Профиль сохранён.";
         }
@@ -138,6 +160,25 @@ else
                 }
             </select>
         </div>;
+
+    private static bool TryParseSteamDigits(string raw, out int? value)
+    {
+        var text = raw.Trim();
+        if (text.Length == 0)
+        {
+            value = null;
+            return true;
+        }
+
+        if (int.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            value = parsed;
+            return true;
+        }
+
+        value = null;
+        return false;
+    }
 
     private static void SetRole(Action<int> set, ChangeEventArgs e)
     {

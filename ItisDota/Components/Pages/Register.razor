@@ -21,7 +21,7 @@
 <EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="register" method="post" Enhance="false">
     <DataAnnotationsValidator />
     <div class="mb-3">
-        <label class="form-label" for="register-username">Имя пользователя</label>
+        <label class="form-label" for="register-username">Логин</label>
         <InputText id="register-username" class="form-control" @bind-Value="Input!.Username" autocomplete="username" />
         <ValidationMessage For="() => Input!.Username" class="text-danger" />
     </div>
@@ -126,7 +126,8 @@
 
     private sealed class RegisterInput
     {
-        [Required(ErrorMessage = "Введите имя пользователя")]
+        [Required(ErrorMessage = "Введите логин")]
+        [RegularExpression("^[A-Za-z0-9._-]+$", ErrorMessage = "Логин может содержать только латинские буквы, цифры и символы . _ - без пробелов.")]
         public string Username { get; set; } = "";
 
         [Required(ErrorMessage = "Введите Telegram-ник")]

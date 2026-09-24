@@ -6,6 +6,7 @@ public class RoomMemberDto
     public string RealName { get; set; } = string.Empty;
     public string TgTag { get; set; } = string.Empty;
     public int Mmr { get; set; }
+    public int? SteamFriendId { get; set; }
     public int RolePriority1 { get; set; }
     public int RolePriority2 { get; set; }
     public int RolePriority3 { get; set; }
@@ -21,6 +22,7 @@ public class RoomMemberDto
             RealName = RealName,
             TgTag = TgTag,
             Mmr = Mmr,
+            SteamFriendId = SteamFriendId,
             RolePriority1 = RolePriority1,
             RolePriority2 = RolePriority2,
             RolePriority3 = RolePriority3,
