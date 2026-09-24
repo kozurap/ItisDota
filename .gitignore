@@ -1,5 +1,6 @@
 bin/
 obj/
+.cursor/
 .vs/
 .idea/
 *.user
