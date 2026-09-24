@@ -7,7 +7,7 @@ alwaysApply: true
 
 ## Стек
 
-- ASP.NET Core Razor Pages (`net10.0`), namespace `ItisDota`
+- ASP.NET Core Blazor Interactive Server (`net10.0`), namespace `ItisDota`
 - PostgreSQL через EF Core (`Npgsql`)
 - Запуск: `docker compose up --build` из корня решения (сервисы `web` + `postgres`)
 - Данные Postgres живут в named volume `itisdota_pgdata` — не использовать `docker compose down -v`
@@ -16,9 +16,9 @@ alwaysApply: true
 
 - `Data/` — entities, `AppDbContext`, repositories
 - `Business/` — `PlayerImportService`, `PromptService`
-- `Pages/` — UI, тонкие handlers
+- `Components/` — Blazor UI (`Players.razor` и layout), тонкие обработчики; каждое действие через `PromptScope` (новый DI-scope)
 
-Не тащить EF/SQL в Pages без необходимости; бизнес-логика — в `Business/`.
+Не тащить EF/SQL в `Components/` без необходимости; бизнес-логика — в `Business/`.
 
 ## Ключевые доменные правила
 
@@ -38,4 +38,4 @@ alwaysApply: true
 
 ## UI
 
-- Одна страница `Pages/Index.cshtml`: импорт (textarea + file/drag-drop), таблица с чекбоксами, редактирование промпта, копирование в буфер без навигации
+- Одна страница `Components/Pages/Players.razor`: импорт (textarea + file/drag-drop), таблица с чекбоксами, редактирование промпта, копирование в буфер без навигации

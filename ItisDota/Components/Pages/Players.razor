@@ -1,0 +1,552 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject PromptScope Prompts
+@inject IJSRuntime Js
+
+<PageTitle>Игроки</PageTitle>
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="alert alert-success" role="alert">@_statusMessage</div>
+}
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <h2 class="h4 mb-3">Импорт JSON</h2>
+        <div @ref="_dropzone" id="json-dropzone" class="json-dropzone mb-3">
+            <InputFile id="json-file" class="d-none" accept=".json,application/json" OnChange="OnFileSelected" />
+            <p class="mb-2 fw-semibold">Перетащите JSON-файл сюда</p>
+            <p class="mb-3 text-muted small">или</p>
+            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="PickFile">Выбрать файл</button>
+            <p class="mt-3 mb-0 small text-muted">@(_fileName ?? "Файл не выбран")</p>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="json-input">Или вставьте JSON участников</label>
+            <textarea id="json-input" class="form-control font-monospace" rows="10" placeholder="JSON массива игроков из формы" @bind="_jsonInput"></textarea>
+        </div>
+        <button type="button" class="btn btn-primary" @onclick="ImportAsync">Сохранить в базу</button>
+    </div>
+
+    <div class="col-lg-7">
+        <h2 class="h4 mb-3">Список игроков</h2>
+        <form class="row g-2 align-items-end mb-3" @onsubmit="Search" @onsubmit:preventDefault>
+            <div class="col">
+                <label class="form-label" for="TgSearch">Поиск по Telegram</label>
+                <div class="input-group tg-search-group">
+                    <span class="input-group-text tg-search-prefix" aria-hidden="true">@@</span>
+                    <input id="TgSearch" class="form-control@(_tgSearchError is null ? "" : " is-invalid")"
+                           placeholder="username" autocomplete="off" aria-describedby="tg-search-error"
+                           @bind="_tgSearch" @bind:event="oninput" />
+                </div>
+                <div id="tg-search-error"
+                     class="invalid-feedback@(_tgSearchError is null ? "" : " d-block")"
+                     role="alert">@(_tgSearchError ?? "")</div>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-primary">Найти</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="ResetSearch">Сброс</button>
+            </div>
+        </form>
+
+        @if (_visible.Count == 0)
+        {
+            <p class="text-muted">Игроки не найдены. Импортируйте JSON или измените поиск.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle" id="players-table">
+                    <thead>
+                    <tr>
+                        <th style="width: 2.5rem;">
+                            <input type="checkbox" class="form-check-input" title="Выбрать всех"
+                                   checked="@AllVisibleSelected" @onchange="ToggleAll" />
+                        </th>
+                        <th>Имя</th>
+                        <th>Telegram</th>
+                        <th>ПТС</th>
+                        <th>Приоритеты ролей</th>
+                        <th style="width: 5.5rem;"></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var player in _visible)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input player-check"
+                                       checked="@_selected.Contains(player.Id)"
+                                       @onchange="e => TogglePlayer(player.Id, e)" />
+                            </td>
+                            <td>@player.RealName</td>
+                            <td>@player.TgTag</td>
+                            <td>@player.MmRRange</td>
+                            <td class="small text-nowrap">
+                                1→@player.RolePriority1,
+                                2→@player.RolePriority2,
+                                3→@player.RolePriority3,
+                                4→@player.RolePriority4,
+                                5→@player.RolePriority5
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => OpenEdit(player)">
+                                    Изменить
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<hr class="my-4" />
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <h2 class="h4 mb-3">Промпт для сборки команд</h2>
+        <div class="mb-3">
+            <label class="form-label" for="prompt-text">Текст промпта</label>
+            <textarea id="prompt-text" class="form-control" rows="8" @bind="_promptText"></textarea>
+        </div>
+        <button type="button" class="btn btn-secondary" @onclick="SavePromptAsync">Сохранить промпт</button>
+    </div>
+
+    <div class="col-lg-6">
+        <h2 class="h4 mb-3">Отправить в Cursor</h2>
+        <p class="text-muted small">Выберите игроков кратно 10 (10, 20, …), затем нажмите кнопку — готовый текст появится ниже и скопируется в буфер обмена.</p>
+        <p class="small mb-2 @(_buildEnabled ? "text-success" : "text-muted")">@_selectedLabel</p>
+        <button type="button" id="build-prompt-btn" class="btn btn-success mb-3" disabled="@(!_buildEnabled)" @onclick="BuildPromptAsync">
+            Собрать промпт и скопировать
+        </button>
+        <div class="small mb-2 @_copyClass" aria-live="polite">@_copyStatus</div>
+        @if (_generated is not null)
+        {
+            <pre id="generated-prompt" class="border rounded p-3 bg-light small" style="white-space: pre-wrap; min-height: 8rem;">@_generated</pre>
+        }
+    </div>
+</div>
+
+@if (_edit is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" aria-labelledby="edit-player-modal-label" style="background: rgba(0,0,0,.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="edit-player-modal-label">Редактирование игрока</h5>
+                    <button type="button" class="btn-close" aria-label="Закрыть" @onclick="CloseEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Имя</label>
+                        <input class="form-control" @bind="_edit.RealName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Telegram</label>
+                        <div class="input-group">
+                            <span class="input-group-text tg-search-prefix" aria-hidden="true">@@</span>
+                            <input class="form-control" placeholder="username" @bind="_edit.TgNick" />
+                        </div>
+                        <div class="form-text">Без символа @@ — он добавится автоматически.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ПТС</label>
+                        <input class="form-control" @bind="_edit.MmRRange" />
+                    </div>
+                    <div class="row g-2">
+                        @RoleSelect("Роль 1", _edit.RolePriority1, v => _edit.RolePriority1 = v)
+                        @RoleSelect("Роль 2", _edit.RolePriority2, v => _edit.RolePriority2 = v)
+                        @RoleSelect("Роль 3", _edit.RolePriority3, v => _edit.RolePriority3 = v)
+                        @RoleSelect("Роль 4", _edit.RolePriority4, v => _edit.RolePriority4 = v)
+                        @RoleSelect("Роль 5", _edit.RolePriority5, v => _edit.RolePriority5 = v)
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-outline-danger" @onclick="DeleteAsync">Удалить</button>
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="CloseEdit">Отмена</button>
+                        <button type="button" class="btn btn-primary" @onclick="SaveEditAsync">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string TgAtError = "Не указывайте символ @ — он уже стоит слева от поля. Введите только ник.";
+
+    private readonly List<PlayerDto> _players = new();
+    private readonly HashSet<int> _selected = new();
+    private ElementReference _dropzone;
+    private IJSObjectReference? _playersJs;
+    private IJSObjectReference? _dropBinding;
+    private DotNetObjectReference<Players>? _self;
+    private PlayerEditDto? _edit;
+    private string _jsonInput = string.Empty;
+    private string? _fileName;
+    private string _promptText = string.Empty;
+    private string _tgSearch = string.Empty;
+    private string? _appliedSearch;
+    private string? _tgSearchError;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private string? _generated;
+    private string _copyStatus = string.Empty;
+    private string _copyClass = string.Empty;
+    private bool _dropBound;
+
+    private IReadOnlyList<PlayerDto> _visible => Filter(_players);
+
+    private int SelectedCount => _selected.Count;
+
+    private bool _buildEnabled => SelectedCount > 0 && SelectedCount % 10 == 0;
+
+    private string _selectedLabel =>
+        "Выбрано: " + SelectedCount + (_buildEnabled ? "" : " (нужно кратно 10)");
+
+    private bool AllVisibleSelected =>
+        _visible.Count > 0 && _visible.All(p => _selected.Contains(p.Id));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_dropBound)
+        {
+            return;
+        }
+
+        _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+        _self ??= DotNetObjectReference.Create(this);
+        _dropBinding = await _playersJs.InvokeAsync<IJSObjectReference>("bindDrop", _dropzone, _self);
+        _dropBound = true;
+    }
+
+    private async Task LoadAsync()
+    {
+        var players = await Prompts.UseAsync(s => s.GetPlayersAsync());
+        _players.Clear();
+        _players.AddRange(players);
+        _promptText = await Prompts.UseAsync(s => s.GetPromptAsync());
+    }
+
+    private IReadOnlyList<PlayerDto> Filter(IReadOnlyList<PlayerDto> players)
+    {
+        if (string.IsNullOrWhiteSpace(_appliedSearch) || _tgSearchError is not null)
+        {
+            return players;
+        }
+
+        var searchTerm = "@" + _appliedSearch.Trim();
+        return players
+            .Where(p => p.TgTag.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void Search()
+    {
+        _statusMessage = null;
+        _errorMessage = null;
+        _selected.Clear();
+        var term = _tgSearch.Trim();
+        if (term.Contains('@', StringComparison.Ordinal))
+        {
+            _tgSearchError = TgAtError;
+            _appliedSearch = term;
+            return;
+        }
+
+        _tgSearchError = null;
+        _appliedSearch = term;
+    }
+
+    private void ResetSearch()
+    {
+        _tgSearch = string.Empty;
+        _appliedSearch = null;
+        _tgSearchError = null;
+        _selected.Clear();
+    }
+
+    private void TogglePlayer(int id, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selected.Add(id);
+        }
+        else
+        {
+            _selected.Remove(id);
+        }
+    }
+
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            foreach (var player in _visible)
+            {
+                _selected.Add(player.Id);
+            }
+        }
+        else
+        {
+            foreach (var player in _visible)
+            {
+                _selected.Remove(player.Id);
+            }
+        }
+    }
+
+    private async Task PickFile()
+    {
+        _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+        await _playersJs.InvokeVoidAsync("clickFile");
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        using var reader = new StreamReader(file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024));
+        _jsonInput = await reader.ReadToEndAsync();
+        _fileName = "Выбран файл: " + file.Name;
+    }
+
+    [JSInvokable]
+    public void OnFileDropped(string name, string text)
+    {
+        _jsonInput = text;
+        _fileName = "Выбран файл: " + name;
+        StateHasChanged();
+    }
+
+    private async Task ImportAsync()
+    {
+        ClearAlerts();
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_jsonInput))
+            {
+                _errorMessage = "Вставьте JSON или выберите файл перед сохранением.";
+                return;
+            }
+
+            await Prompts.UseAsync(s => s.ImportPlayersAsync(_jsonInput));
+            _statusMessage = "Игроки успешно сохранены (новые добавлены, существующие по Telegram-тегу обновлены).";
+            _jsonInput = string.Empty;
+            _fileName = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task SavePromptAsync()
+    {
+        ClearAlerts();
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_promptText))
+            {
+                _errorMessage = "Промпт не может быть пустым.";
+                return;
+            }
+
+            await Prompts.UseAsync(s => s.SavePromptAsync(_promptText));
+            _statusMessage = "Промпт сохранён.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private void OpenEdit(PlayerDto player)
+    {
+        var nick = player.TgTag.StartsWith('@') ? player.TgTag[1..] : player.TgTag;
+        _edit = new PlayerEditDto
+        {
+            Id = player.Id,
+            RealName = player.RealName,
+            TgNick = nick,
+            MmRRange = player.MmRRange,
+            RolePriority1 = player.RolePriority1,
+            RolePriority2 = player.RolePriority2,
+            RolePriority3 = player.RolePriority3,
+            RolePriority4 = player.RolePriority4,
+            RolePriority5 = player.RolePriority5
+        };
+    }
+
+    private void CloseEdit() => _edit = null;
+
+    private RenderFragment RoleSelect(string label, int value, Action<int> set) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "col");
+        builder.OpenElement(2, "label");
+        builder.AddAttribute(3, "class", "form-label");
+        builder.AddContent(4, label);
+        builder.CloseElement();
+        builder.OpenElement(5, "select");
+        builder.AddAttribute(6, "class", "form-select");
+        builder.AddAttribute(7, "value", value.ToString());
+        builder.AddAttribute(8, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e =>
+        {
+            if (int.TryParse(e.Value?.ToString(), out var role))
+            {
+                set(role);
+            }
+        }));
+        for (var r = 1; r <= 5; r++)
+        {
+            var role = r;
+            builder.OpenElement(9 + role, "option");
+            builder.AddAttribute(20 + role, "value", role.ToString());
+            builder.AddContent(30 + role, role.ToString());
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private async Task SaveEditAsync()
+    {
+        if (_edit is null)
+        {
+            return;
+        }
+
+        ClearAlerts();
+        var search = _appliedSearch;
+        try
+        {
+            await Prompts.UseAsync(s => s.UpdatePlayerAsync(_edit));
+            _statusMessage = "Игрок обновлён.";
+            _edit = null;
+            await LoadAsync();
+            _appliedSearch = search;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_edit is null)
+        {
+            return;
+        }
+
+        _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+        var confirmed = await _playersJs.InvokeAsync<bool>("confirmAction", "Удалить этого игрока?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        ClearAlerts();
+        var search = _appliedSearch;
+        try
+        {
+            if (_edit.Id <= 0)
+            {
+                _errorMessage = "Не удалось определить игрока для удаления.";
+                return;
+            }
+
+            var id = _edit.Id;
+            await Prompts.UseAsync(s => s.DeletePlayerAsync(id));
+            _selected.Remove(id);
+            _statusMessage = "Игрок удалён.";
+            _edit = null;
+            await LoadAsync();
+            _appliedSearch = search;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private async Task BuildPromptAsync()
+    {
+        var selected = _players.Where(p => _selected.Contains(p.Id)).ToList();
+        if (selected.Count == 0 || selected.Count % 10 != 0)
+        {
+            _copyStatus = "Число выбранных игроков должно делиться на 10.";
+            _copyClass = "text-danger";
+            return;
+        }
+
+        try
+        {
+            await Prompts.UseAsync(s => s.RecordSelectionsAsync(selected.Select(p => p.Id).ToList()));
+        }
+        catch (Exception ex)
+        {
+            _copyStatus = ex.Message;
+            _copyClass = "text-danger";
+            return;
+        }
+
+        var text = PromptService.BuildFullPrompt(_promptText, selected);
+        _generated = text;
+
+        try
+        {
+            _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+            await _playersJs.InvokeVoidAsync("copyText", text);
+            _copyStatus = "Скопировано в буфер обмена. Вставьте в чат Cursor.";
+            _copyClass = "text-success";
+        }
+        catch
+        {
+            _copyStatus = "Текст показан ниже. Скопируйте вручную (Ctrl+C), если буфер недоступен.";
+            _copyClass = "text-warning";
+        }
+    }
+
+    private void ClearAlerts()
+    {
+        _statusMessage = null;
+        _errorMessage = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_dropBinding is not null)
+        {
+            try
+            {
+                await _dropBinding.InvokeVoidAsync("dispose");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            await _dropBinding.DisposeAsync();
+        }
+
+        if (_playersJs is not null)
+        {
+            await _playersJs.DisposeAsync();
+        }
+
+        _self?.Dispose();
+    }
+}

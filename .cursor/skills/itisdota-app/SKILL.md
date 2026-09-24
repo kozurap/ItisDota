@@ -1,7 +1,7 @@
 ---
 name: itisdota-app
 description: >-
-  Develops and maintains the ItisDota ASP.NET Razor Pages app (players JSON
+  Develops and maintains the ItisDota ASP.NET Blazor app (players JSON
   import, PostgreSQL upsert by Telegram tag, editable team prompt, Docker
   Compose). Use when editing ItisDota code, Docker, import/UI, PromptService,
   PlayerImportService, or appsettings/EF layers.
@@ -13,7 +13,7 @@ description: >-
 
 | Layer | Path | Responsibility |
 |-------|------|----------------|
-| Presentation | `ItisDota/Pages/` | Razor Pages + page JS |
+| Presentation | `ItisDota/Components/` | Blazor Interactive Server UI |
 | Business | `ItisDota/Business/Services/` | Parse JSON, upsert orchestration, prompt get/set |
 | Data | `ItisDota/Data/` | Entities, `AppDbContext`, repositories |
 
@@ -42,12 +42,13 @@ Match on normalized `TgTag`. Existing → update name/MMR/roles; missing → ins
 
 ## UI constraints
 
-- File upload: `multipart/form-data`, `IFormFile JsonFile` + textarea fallback
+- File upload: textarea or dropped/selected JSON file, read as text, then `ImportPlayersAsync`
 - Build-prompt button: enabled only when selected count `> 0 && count % 10 === 0`
 - Clipboard copy stays on the same page (no navigation)
 - Players shown as `PlayerDto` via `PlayerMappingExtensions` (no `SelectionCount` in UI)
-- `SelectionCount` increments on RecordSelections AJAX; list order unchanged until page reload
-- Delete per row; Telegram search via `TgSearch` query
+- `SelectionCount` increments when the prompt is built; list order stays until the next full reload
+- Delete from the edit dialog; Telegram search filters the loaded list
+- UI calls `PromptScope` so each action gets a fresh `DbContext`
 
 ## Docker
 
