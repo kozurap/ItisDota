@@ -99,6 +99,7 @@ public class ProfileService
         player.RealName = realName;
         player.TgTag = tgTag;
         player.Mmr = edit.Mmr;
+        player.SteamFriendId = edit.SteamFriendId;
         player.RolePriority1 = edit.RolePriority1;
         player.RolePriority2 = edit.RolePriority2;
         player.RolePriority3 = edit.RolePriority3;
