@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: itisdota-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: itisdota
+    ports:
+      - "5432:5432"
+    volumes:
+      # Named volume — данные переживают docker compose down / перезапуски.
+      # Не используйте: docker compose down -v  (флаг -v удалит volume с данными).
+      - itisdota_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d itisdota"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: itisdota-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=itisdota;Username=postgres;Password=postgres
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  itisdota_pgdata:
+    name: itisdota_pgdata

@@ -1,0 +1,41 @@
+---
+description: Архитектура и соглашения ASP.NET ItisDota (слои, Postgres, Docker, UI)
+alwaysApply: true
+---
+
+# ItisDota — разработка приложения
+
+## Стек
+
+- ASP.NET Core Razor Pages (`net10.0`), namespace `WebApplication1`
+- PostgreSQL через EF Core (`Npgsql`)
+- Запуск: `docker compose up --build` из корня решения (сервисы `web` + `postgres`)
+- Данные Postgres живут в named volume `itisdota_pgdata` — не использовать `docker compose down -v`
+
+## Трёхслойность (папки в одном проекте)
+
+- `Data/` — entities, `AppDbContext`, repositories
+- `Business/` — `PlayerImportService`, `PromptService`
+- `Pages/` — UI, тонкие handlers
+
+Не тащить EF/SQL в Pages без необходимости; бизнес-логика — в `Business/`.
+
+## Ключевые доменные правила
+
+- Уникальность игрока: `TgTag` (Telegram). Импорт = upsert по тегу
+- JSON импорта: массив игроков, каждый — массив пар `[поле, значение]`
+- Промпт хранится в `AppSettings` с ключом `TeamPrompt`; дефолт — `PromptService.DefaultPrompt`
+- Кнопка сборки промпта активна только если число выбранных игроков кратно 10
+- Список игроков на UI — `PlayerDto` (без `SelectionCount`), маппинг через `PlayerMappingExtensions`
+- Сортировка по `SelectionCount` desc только при загрузке списка; инкремент счётчика при «Собрать промпт» без пересортировки DOM
+- Схема БД — Code First + EF migrations (`Database.MigrateAsync`)
+
+## Docker / конфиг
+
+- Файлы в корне solution: `Dockerfile`, `docker-compose.yml`, `.dockerignore`, `docker-up.cmd`
+- В контейнере connection string: `Host=postgres;...`
+- Профиль Rider `Docker Compose` запускает `cmd.exe` → `docker-up.cmd` (не Debug на `docker`)
+
+## UI
+
+- Одна страница `Pages/Index.cshtml`: импорт (textarea + file/drag-drop), таблица с чекбоксами, редактирование промпта, копирование в буфер без навигации
