@@ -1,0 +1,64 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: itisdota-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME: http://keycloak:8080
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+    volumes:
+      - itisdota_keycloak:/opt/keycloak/data
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3 | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: itisdota-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: itisdota
+    volumes:
+      - itisdota_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d itisdota"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: itisdota-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=itisdota;Username=postgres;Password=${POSTGRES_PASSWORD}
+      Keycloak__Authority: http://keycloak:8080/realms/itisdota
+      Keycloak__ServerBaseUrl: http://keycloak:8080
+      Keycloak__InternalBaseUrl: http://keycloak:8080
+      Keycloak__ClientSecret: ${KEYCLOAK_CLIENT_SECRET:?set KEYCLOAK_CLIENT_SECRET}
+    ports:
+      - "80:8080"
+    restart: unless-stopped
+
+volumes:
+  itisdota_pgdata:
+    name: itisdota_pgdata
+  itisdota_keycloak:
+    name: itisdota_keycloak

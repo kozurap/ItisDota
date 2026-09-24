@@ -7,14 +7,16 @@
 
 <PageTitle>Вход</PageTitle>
 
-<h1 class="h3 mb-3">Вход</h1>
+<div class="col-lg-5">
+    <div class="app-card">
+        <h1 class="h3 mb-3">Вход</h1>
 
 @if (!string.IsNullOrEmpty(_error))
 {
     <div class="alert alert-danger" role="alert">@_error</div>
 }
 
-<EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="login" method="post" Enhance="false" class="col-lg-5">
+<EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="login" method="post" Enhance="false">
     <DataAnnotationsValidator />
     <div class="mb-3">
         <label class="form-label" for="login-username">Имя пользователя</label>
@@ -29,6 +31,8 @@
     <button type="submit" class="btn btn-primary">Войти</button>
     <a class="btn btn-link" href="register" data-enhance-nav="false">Регистрация</a>
 </EditForm>
+    </div>
+</div>
 
 @code {
     [SupplyParameterFromForm]

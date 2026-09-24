@@ -1,9 +1,9 @@
 @inherits LayoutComponentBase
 
 <header>
-    <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+    <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-dark app-navbar mb-4">
         <div class="container">
-            <a class="navbar-brand" href="">ItisDota</a>
+            <a class="navbar-brand" href="">Itis<span>Dota</span></a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                     aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -13,24 +13,24 @@
                     <AuthorizeView>
                         <Authorized>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" href="groups" data-enhance-nav="false">Мои группы</a>
+                                <a class="nav-link" href="groups" data-enhance-nav="false">Мои группы</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" href="profile" data-enhance-nav="false">Профиль</a>
+                                <a class="nav-link" href="profile" data-enhance-nav="false">Профиль</a>
                             </li>
                         </Authorized>
                     </AuthorizeView>
                 </ul>
                 <AuthorizeView>
                     <Authorized>
-                        <ul class="navbar-nav">
+                        <ul class="navbar-nav align-items-center">
                             <li class="nav-item">
-                                <span class="navbar-text text-dark me-2">@context.User.Identity?.Name</span>
+                                <span class="navbar-text app-user-chip me-2">@context.User.Identity?.Name</span>
                             </li>
                             <li class="nav-item">
                                 <form method="post" action="logout" data-enhance="false" class="d-inline">
                                     <AntiforgeryToken />
-                                    <button type="submit" class="nav-link btn btn-link text-dark">Выйти</button>
+                                    <button type="submit" class="nav-link btn btn-link">Выйти</button>
                                 </form>
                             </li>
                         </ul>
@@ -38,10 +38,10 @@
                     <NotAuthorized>
                         <ul class="navbar-nav">
                             <li class="nav-item">
-                                <a class="nav-link text-dark" href="login" data-enhance-nav="false">Вход</a>
+                                <a class="nav-link" href="login" data-enhance-nav="false">Вход</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-dark" href="register" data-enhance-nav="false">Регистрация</a>
+                                <a class="nav-link" href="register" data-enhance-nav="false">Регистрация</a>
                             </li>
                         </ul>
                     </NotAuthorized>
@@ -56,7 +56,7 @@
     </main>
 </div>
 
-<footer class="border-top footer text-muted">
+<footer class="footer">
     <div class="container">
         &copy; 2026 - ItisDota - <a href="privacy">Privacy</a>
     </div>

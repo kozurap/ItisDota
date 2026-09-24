@@ -28,15 +28,18 @@
 
 <div class="row g-4">
     <div class="col-lg-5">
+        <div class="app-card">
         <h2 class="h5 mb-3">Создать группу</h2>
         <div class="mb-3">
             <label class="form-label" for="group-name">Название</label>
             <input id="group-name" class="form-control" placeholder="Например: Пятница" @bind="_newGroupName" />
         </div>
         <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync">Создать</button>
+        </div>
     </div>
 
     <div class="col-lg-7">
+        <div class="app-card">
         <h2 class="h5 mb-3">Группы</h2>
         @if (_groups.Count == 0)
         {
@@ -64,6 +67,7 @@
                 }
             </ul>
         }
+        </div>
     </div>
 </div>
 
