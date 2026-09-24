@@ -6,7 +6,10 @@ using ItisDota.Data.Repositories;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    // JSON импорта целиком уходит одним hub-сообщением (textarea и drag-n-drop),
+    // дефолтных 32 КБ не хватает на лобби из нескольких десятков игроков.
+    .AddHubOptions(options => options.MaximumReceiveMessageSize = 4 * 1024 * 1024);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));

@@ -29,7 +29,7 @@
             <label class="form-label" for="json-input">Или вставьте JSON участников</label>
             <textarea id="json-input" class="form-control font-monospace" rows="10" placeholder="JSON массива игроков из формы" @bind="_jsonInput"></textarea>
         </div>
-        <button type="button" class="btn btn-primary" @onclick="ImportAsync">Сохранить в базу</button>
+        <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="ImportAsync">Сохранить в базу</button>
     </div>
 
     <div class="col-lg-7">
@@ -116,14 +116,14 @@
             <label class="form-label" for="prompt-text">Текст промпта</label>
             <textarea id="prompt-text" class="form-control" rows="8" @bind="_promptText"></textarea>
         </div>
-        <button type="button" class="btn btn-secondary" @onclick="SavePromptAsync">Сохранить промпт</button>
+        <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="SavePromptAsync">Сохранить промпт</button>
     </div>
 
     <div class="col-lg-6">
         <h2 class="h4 mb-3">Отправить в Cursor</h2>
         <p class="text-muted small">Выберите игроков кратно 10 (10, 20, …), затем нажмите кнопку — готовый текст появится ниже и скопируется в буфер обмена.</p>
         <p class="small mb-2 @(_buildEnabled ? "text-success" : "text-muted")">@_selectedLabel</p>
-        <button type="button" id="build-prompt-btn" class="btn btn-success mb-3" disabled="@(!_buildEnabled)" @onclick="BuildPromptAsync">
+        <button type="button" id="build-prompt-btn" class="btn btn-success mb-3" disabled="@(!_buildEnabled || _busy)" @onclick="BuildPromptAsync">
             Собрать промпт и скопировать
         </button>
         <div class="small mb-2 @_copyClass" aria-live="polite">@_copyStatus</div>
@@ -169,10 +169,10 @@
                     </div>
                 </div>
                 <div class="modal-footer justify-content-between">
-                    <button type="button" class="btn btn-outline-danger" @onclick="DeleteAsync">Удалить</button>
+                    <button type="button" class="btn btn-outline-danger" disabled="@_busy" @onclick="DeleteAsync">Удалить</button>
                     <div>
                         <button type="button" class="btn btn-outline-secondary" @onclick="CloseEdit">Отмена</button>
-                        <button type="button" class="btn btn-primary" @onclick="SaveEditAsync">Сохранить</button>
+                        <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="SaveEditAsync">Сохранить</button>
                     </div>
                 </div>
             </div>
@@ -182,6 +182,7 @@
 
 @code {
     private const string TgAtError = "Не указывайте символ @ — он уже стоит слева от поля. Введите только ник.";
+    private const long MaxImportBytes = 2 * 1024 * 1024;
 
     private readonly List<PlayerDto> _players = new();
     private readonly HashSet<int> _selected = new();
@@ -202,6 +203,7 @@
     private string _copyStatus = string.Empty;
     private string _copyClass = string.Empty;
     private bool _dropBound;
+    private bool _busy;
 
     private IReadOnlyList<PlayerDto> _visible => Filter(_players);
 
@@ -217,7 +219,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadAsync();
+        try
+        {
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось загрузить данные: " + ex.Message;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -317,10 +326,24 @@
 
     private async Task OnFileSelected(InputFileChangeEventArgs e)
     {
+        ClearAlerts();
         var file = e.File;
-        using var reader = new StreamReader(file.OpenReadStream(maxAllowedSize: 2 * 1024 * 1024));
-        _jsonInput = await reader.ReadToEndAsync();
-        _fileName = "Выбран файл: " + file.Name;
+        try
+        {
+            using var reader = new StreamReader(file.OpenReadStream(maxAllowedSize: MaxImportBytes));
+            _jsonInput = await reader.ReadToEndAsync();
+            _fileName = "Выбран файл: " + file.Name;
+        }
+        catch (IOException)
+        {
+            _fileName = null;
+            _errorMessage = $"Файл слишком большой. Максимум — {MaxImportBytes / (1024 * 1024)} МБ.";
+        }
+        catch (Exception ex)
+        {
+            _fileName = null;
+            _errorMessage = "Не удалось прочитать файл: " + ex.Message;
+        }
     }
 
     [JSInvokable]
@@ -333,7 +356,13 @@
 
     private async Task ImportAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         ClearAlerts();
+        _busy = true;
         try
         {
             if (string.IsNullOrWhiteSpace(_jsonInput))
@@ -352,11 +381,21 @@
         {
             _errorMessage = ex.Message;
         }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task SavePromptAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         ClearAlerts();
+        _busy = true;
         try
         {
             if (string.IsNullOrWhiteSpace(_promptText))
@@ -371,6 +410,10 @@
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 
@@ -393,62 +436,55 @@
 
     private void CloseEdit() => _edit = null;
 
-    private RenderFragment RoleSelect(string label, int value, Action<int> set) => builder =>
+    private RenderFragment RoleSelect(string label, int value, Action<int> set) =>
+        @<div class="col">
+            <label class="form-label">@label</label>
+            <select class="form-select" value="@value" @onchange="e => SetRole(set, e)">
+                @for (var r = 1; r <= 5; r++)
+                {
+                    var role = r;
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </div>;
+
+    private static void SetRole(Action<int> set, ChangeEventArgs e)
     {
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "col");
-        builder.OpenElement(2, "label");
-        builder.AddAttribute(3, "class", "form-label");
-        builder.AddContent(4, label);
-        builder.CloseElement();
-        builder.OpenElement(5, "select");
-        builder.AddAttribute(6, "class", "form-select");
-        builder.AddAttribute(7, "value", value.ToString());
-        builder.AddAttribute(8, "onchange", EventCallback.Factory.Create<ChangeEventArgs>(this, e =>
+        if (int.TryParse(e.Value?.ToString(), out var role))
         {
-            if (int.TryParse(e.Value?.ToString(), out var role))
-            {
-                set(role);
-            }
-        }));
-        for (var r = 1; r <= 5; r++)
-        {
-            var role = r;
-            builder.OpenElement(9 + role, "option");
-            builder.AddAttribute(20 + role, "value", role.ToString());
-            builder.AddContent(30 + role, role.ToString());
-            builder.CloseElement();
+            set(role);
         }
-        builder.CloseElement();
-        builder.CloseElement();
-    };
+    }
 
     private async Task SaveEditAsync()
     {
-        if (_edit is null)
+        if (_edit is null || _busy)
         {
             return;
         }
 
         ClearAlerts();
-        var search = _appliedSearch;
+        _busy = true;
         try
         {
             await Prompts.UseAsync(s => s.UpdatePlayerAsync(_edit));
             _statusMessage = "Игрок обновлён.";
             _edit = null;
             await LoadAsync();
-            _appliedSearch = search;
         }
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
         }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task DeleteAsync()
     {
-        if (_edit is null)
+        if (_edit is null || _busy)
         {
             return;
         }
@@ -461,7 +497,7 @@
         }
 
         ClearAlerts();
-        var search = _appliedSearch;
+        _busy = true;
         try
         {
             if (_edit.Id <= 0)
@@ -476,16 +512,24 @@
             _statusMessage = "Игрок удалён.";
             _edit = null;
             await LoadAsync();
-            _appliedSearch = search;
         }
         catch (Exception ex)
         {
             _errorMessage = ex.Message;
         }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task BuildPromptAsync()
     {
+        if (_busy)
+        {
+            return;
+        }
+
         var selected = _players.Where(p => _selected.Contains(p.Id)).ToList();
         if (selected.Count == 0 || selected.Count % 10 != 0)
         {
@@ -494,31 +538,39 @@
             return;
         }
 
+        _busy = true;
         try
         {
-            await Prompts.UseAsync(s => s.RecordSelectionsAsync(selected.Select(p => p.Id).ToList()));
-        }
-        catch (Exception ex)
-        {
-            _copyStatus = ex.Message;
-            _copyClass = "text-danger";
-            return;
-        }
+            try
+            {
+                await Prompts.UseAsync(s => s.RecordSelectionsAsync(selected.Select(p => p.Id).ToList()));
+            }
+            catch (Exception ex)
+            {
+                _copyStatus = ex.Message;
+                _copyClass = "text-danger";
+                return;
+            }
 
-        var text = PromptService.BuildFullPrompt(_promptText, selected);
-        _generated = text;
+            var text = PromptService.BuildFullPrompt(_promptText, selected);
+            _generated = text;
 
-        try
-        {
-            _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
-            await _playersJs.InvokeVoidAsync("copyText", text);
-            _copyStatus = "Скопировано в буфер обмена. Вставьте в чат Cursor.";
-            _copyClass = "text-success";
+            try
+            {
+                _playersJs ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+                await _playersJs.InvokeVoidAsync("copyText", text);
+                _copyStatus = "Скопировано в буфер обмена. Вставьте в чат Cursor.";
+                _copyClass = "text-success";
+            }
+            catch
+            {
+                _copyStatus = "Текст показан ниже. Скопируйте вручную (Ctrl+C), если буфер недоступен.";
+                _copyClass = "text-warning";
+            }
         }
-        catch
+        finally
         {
-            _copyStatus = "Текст показан ниже. Скопируйте вручную (Ctrl+C), если буфер недоступен.";
-            _copyClass = "text-warning";
+            _busy = false;
         }
     }
 
@@ -530,21 +582,21 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_dropBinding is not null)
+        try
         {
-            try
+            if (_dropBinding is not null)
             {
                 await _dropBinding.InvokeVoidAsync("dispose");
+                await _dropBinding.DisposeAsync();
             }
-            catch (JSDisconnectedException)
-            {
-            }
-            await _dropBinding.DisposeAsync();
-        }
 
-        if (_playersJs is not null)
+            if (_playersJs is not null)
+            {
+                await _playersJs.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
         {
-            await _playersJs.DisposeAsync();
         }
 
         _self?.Dispose();
