@@ -1,0 +1,302 @@
+@page "/groups/{GroupId:int}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PromptScope Scopes
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>@(_room?.Name ?? "Комната")</PageTitle>
+
+@if (_room is null)
+{
+    <h1 class="h3 mb-3">Комната недоступна</h1>
+    <p class="text-muted">
+        Вы не состоите в этой группе. Попросите у друзей ссылку-приглашение — по ней вы попадёте в комнату.
+    </p>
+    <a class="btn btn-outline-secondary" href="groups">Мои группы</a>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">@_room.Name</h1>
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CopyInviteAsync">
+            Копировать ссылку-приглашение
+        </button>
+    </div>
+
+    @if (_profileIncomplete)
+    {
+        <div class="alert alert-warning" role="alert">
+            Ваш профиль не заполнен: укажите ПТС и приоритеты ролей.
+            <a href="profile">Перейти в профиль</a>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(_statusMessage))
+    {
+        <div class="alert alert-success" role="alert">@_statusMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@_errorMessage</div>
+    }
+
+    <h2 class="h5 mb-3">Участники</h2>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle" id="players-table">
+            <thead>
+            <tr>
+                <th style="width: 2.5rem;">
+                    <input type="checkbox" class="form-check-input" title="Выбрать всех"
+                           checked="@AllSelected" @onchange="ToggleAll" />
+                </th>
+                <th>Имя</th>
+                <th>Telegram</th>
+                <th>ПТС</th>
+                <th>Приоритеты ролей</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var member in _room.Members)
+            {
+                <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input player-check"
+                               checked="@_selected.Contains(member.Id)"
+                               @onchange="e => ToggleMember(member.Id, e)" />
+                    </td>
+                    <td>@member.RealName</td>
+                    <td>@member.TgTag</td>
+                    <td>@(string.IsNullOrWhiteSpace(member.MmRRange) ? "—" : member.MmRRange)</td>
+                    <td class="small text-nowrap">
+                        @if (ProfileService.IsComplete(member))
+                        {
+                            @($"1→{member.RolePriority1}, 2→{member.RolePriority2}, 3→{member.RolePriority3}, 4→{member.RolePriority4}, 5→{member.RolePriority5}")
+                        }
+                        else
+                        {
+                            <span class="text-muted">профиль не заполнен</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <hr class="my-4" />
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">Промпт группы</h2>
+            <div class="mb-3">
+                <label class="form-label" for="prompt-text">Текст промпта</label>
+                <textarea id="prompt-text" class="form-control" rows="8" @bind="_promptText"></textarea>
+            </div>
+            <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="SavePromptAsync">
+                Сохранить промпт
+            </button>
+        </div>
+
+        <div class="col-lg-6">
+            <h2 class="h5 mb-3">Отправить в Cursor</h2>
+            <p class="text-muted small">Выберите игроков кратно 10 (10, 20, …), затем нажмите кнопку — готовый текст появится ниже и скопируется в буфер обмена.</p>
+            <p class="small mb-2 @(BuildEnabled ? "text-success" : "text-muted")">@SelectedLabel</p>
+            <button type="button" id="build-prompt-btn" class="btn btn-success mb-3"
+                    disabled="@(!BuildEnabled || _busy)" @onclick="BuildPromptAsync">
+                Собрать промпт и скопировать
+            </button>
+            <div class="small mb-2 @_copyClass" aria-live="polite">@_copyStatus</div>
+            @if (_generated is not null)
+            {
+                <pre id="generated-prompt" class="border rounded p-3 bg-light small" style="white-space: pre-wrap; min-height: 8rem;">@_generated</pre>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int GroupId { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private readonly HashSet<int> _selected = new();
+    private GroupRoomDto? _room;
+    private IJSObjectReference? _module;
+    private string _promptText = string.Empty;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private string? _generated;
+    private string _copyStatus = string.Empty;
+    private string _copyClass = string.Empty;
+    private bool _profileIncomplete;
+    private bool _busy;
+
+    private int SelectedCount => _selected.Count;
+
+    private bool BuildEnabled => SelectedCount > 0 && SelectedCount % 10 == 0;
+
+    private string SelectedLabel =>
+        "Выбрано: " + SelectedCount + (BuildEnabled ? "" : " (нужно кратно 10)");
+
+    private bool AllSelected =>
+        _room is { Members.Count: > 0 } && _room.Members.All(m => _selected.Contains(m.Id));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось загрузить комнату: " + ex.Message;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var userId = await CurrentUserIdAsync();
+        var groupId = GroupId;
+        _room = await Scopes.UseAsync<GroupService, GroupRoomDto?>(s => s.GetRoomAsync(userId, groupId));
+        if (_room is null)
+        {
+            return;
+        }
+
+        _promptText = _room.PromptText;
+        var profile = await Scopes.UseAsync<ProfileService, PlayerDto?>(s => s.GetAsync(userId));
+        _profileIncomplete = profile is null || !ProfileService.IsComplete(profile);
+    }
+
+    private void ToggleMember(int playerId, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selected.Add(playerId);
+        }
+        else
+        {
+            _selected.Remove(playerId);
+        }
+    }
+
+    private void ToggleAll(ChangeEventArgs e)
+    {
+        if (_room is null)
+        {
+            return;
+        }
+
+        foreach (var member in _room.Members)
+        {
+            if (e.Value is true)
+            {
+                _selected.Add(member.Id);
+            }
+            else
+            {
+                _selected.Remove(member.Id);
+            }
+        }
+    }
+
+    private async Task SavePromptAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        ClearAlerts();
+        _busy = true;
+        try
+        {
+            var userId = await CurrentUserIdAsync();
+            var groupId = GroupId;
+            var text = _promptText;
+            await Scopes.UseAsync<GroupService>(s => s.SavePromptAsync(userId, groupId, text));
+            _statusMessage = "Промпт сохранён.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task BuildPromptAsync()
+    {
+        if (_busy || _room is null)
+        {
+            return;
+        }
+
+        ClearAlerts();
+        _busy = true;
+        try
+        {
+            var selected = _room.Members.Where(m => _selected.Contains(m.Id)).ToList();
+            _generated = PromptService.BuildFullPrompt(_promptText, selected);
+
+            var userId = await CurrentUserIdAsync();
+            var groupId = GroupId;
+            var ids = selected.Select(m => m.Id).ToList();
+            await Scopes.UseAsync<GroupService>(s => s.RecordSelectionsAsync(userId, groupId, ids));
+
+            try
+            {
+                _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+                await _module.InvokeVoidAsync("copyText", _generated);
+                _copyStatus = "Промпт скопирован в буфер обмена.";
+                _copyClass = "text-success";
+            }
+            catch (Exception)
+            {
+                _copyStatus = "Не удалось скопировать автоматически — выделите текст ниже.";
+                _copyClass = "text-warning";
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CopyInviteAsync()
+    {
+        ClearAlerts();
+        try
+        {
+            var url = Navigation.ToAbsoluteUri($"join/{_room!.InviteToken}").ToString();
+            _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+            await _module.InvokeVoidAsync("copyText", url);
+            _statusMessage = "Ссылка скопирована: " + url;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось скопировать ссылку: " + ex.Message;
+        }
+    }
+
+    private void ClearAlerts()
+    {
+        _statusMessage = null;
+        _errorMessage = null;
+    }
+
+    private async Task<string> CurrentUserIdAsync()
+    {
+        var state = await AuthenticationState!;
+        return state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? throw new InvalidOperationException("Не удалось определить пользователя.");
+    }
+}
