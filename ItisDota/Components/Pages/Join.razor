@@ -1,0 +1,47 @@
+@page "/join/{Token}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PromptScope Scopes
+@inject NavigationManager Navigation
+
+<PageTitle>Вступление в группу</PageTitle>
+
+<h1 class="h3 mb-3">Вступление в группу</h1>
+
+@if (_errorMessage is null)
+{
+    <p class="text-muted">Добавляем вас в группу…</p>
+}
+else
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+    <a class="btn btn-outline-secondary" href="groups">Мои группы</a>
+    <a class="btn btn-link" href="profile">Профиль</a>
+}
+
+@code {
+    [Parameter]
+    public string Token { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var state = await AuthenticationState!;
+            var userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? throw new InvalidOperationException("Не удалось определить пользователя.");
+            var token = Token;
+            var groupId = await Scopes.UseAsync<GroupService, int>(s => s.JoinByTokenAsync(userId, token));
+            Navigation.NavigateTo($"groups/{groupId}");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+}

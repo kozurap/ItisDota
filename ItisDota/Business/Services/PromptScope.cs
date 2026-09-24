@@ -9,17 +9,19 @@ public class PromptScope
         _scopes = scopes;
     }
 
-    public async Task<T> UseAsync<T>(Func<PromptService, Task<T>> action)
+    public async Task<TResult> UseAsync<TService, TResult>(Func<TService, Task<TResult>> action)
+        where TService : notnull
     {
         using var scope = _scopes.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<PromptService>();
+        var service = scope.ServiceProvider.GetRequiredService<TService>();
         return await action(service);
     }
 
-    public async Task UseAsync(Func<PromptService, Task> action)
+    public async Task UseAsync<TService>(Func<TService, Task> action)
+        where TService : notnull
     {
         using var scope = _scopes.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<PromptService>();
+        var service = scope.ServiceProvider.GetRequiredService<TService>();
         await action(service);
     }
 }

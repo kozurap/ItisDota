@@ -1,0 +1,147 @@
+@page "/profile"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PromptScope Scopes
+
+<PageTitle>Профиль</PageTitle>
+
+<h1 class="h3 mb-3">Профиль игрока</h1>
+
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="alert alert-success" role="alert">@_statusMessage</div>
+}
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+@if (_edit is null)
+{
+    <p class="text-muted">Загрузка профиля…</p>
+}
+else
+{
+    <div class="col-lg-6">
+        <div class="mb-3">
+            <label class="form-label" for="profile-name">Имя</label>
+            <input id="profile-name" class="form-control" @bind="_edit.RealName" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-tg">Telegram</label>
+            <div class="input-group">
+                <span class="input-group-text tg-search-prefix" aria-hidden="true">@@</span>
+                <input id="profile-tg" class="form-control" placeholder="username" @bind="_edit.TgNick" />
+            </div>
+            <div class="form-text">Без символа @@ — он добавится автоматически.</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="profile-mmr">ПТС</label>
+            <input id="profile-mmr" class="form-control" placeholder="например 4500" @bind="_edit.MmRRange" />
+        </div>
+        <div class="row g-2 mb-3">
+            @RoleSelect("Роль 1", _edit.RolePriority1, v => _edit.RolePriority1 = v)
+            @RoleSelect("Роль 2", _edit.RolePriority2, v => _edit.RolePriority2 = v)
+            @RoleSelect("Роль 3", _edit.RolePriority3, v => _edit.RolePriority3 = v)
+            @RoleSelect("Роль 4", _edit.RolePriority4, v => _edit.RolePriority4 = v)
+            @RoleSelect("Роль 5", _edit.RolePriority5, v => _edit.RolePriority5 = v)
+        </div>
+        <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="SaveAsync">Сохранить профиль</button>
+        <a class="btn btn-link" href="groups">Мои группы</a>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private PlayerEditDto? _edit;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var userId = await CurrentUserIdAsync();
+            var profile = await Scopes.UseAsync<ProfileService, PlayerDto?>(s => s.GetAsync(userId));
+            if (profile is null)
+            {
+                _errorMessage = "Профиль не найден. Зарегистрируйтесь заново.";
+                return;
+            }
+
+            _edit = new PlayerEditDto
+            {
+                Id = profile.Id,
+                RealName = profile.RealName,
+                TgNick = profile.TgTag.StartsWith('@') ? profile.TgTag[1..] : profile.TgTag,
+                MmRRange = profile.MmRRange,
+                RolePriority1 = profile.RolePriority1 is >= 1 and <= 5 ? profile.RolePriority1 : 1,
+                RolePriority2 = profile.RolePriority2 is >= 1 and <= 5 ? profile.RolePriority2 : 2,
+                RolePriority3 = profile.RolePriority3 is >= 1 and <= 5 ? profile.RolePriority3 : 3,
+                RolePriority4 = profile.RolePriority4 is >= 1 and <= 5 ? profile.RolePriority4 : 4,
+                RolePriority5 = profile.RolePriority5 is >= 1 and <= 5 ? profile.RolePriority5 : 5
+            };
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось загрузить профиль: " + ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_busy || _edit is null)
+        {
+            return;
+        }
+
+        _statusMessage = null;
+        _errorMessage = null;
+        _busy = true;
+        try
+        {
+            var userId = await CurrentUserIdAsync();
+            var edit = _edit;
+            await Scopes.UseAsync<ProfileService>(s => s.SaveAsync(userId, edit));
+            _statusMessage = "Профиль сохранён.";
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task<string> CurrentUserIdAsync()
+    {
+        var state = await AuthenticationState!;
+        return state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? throw new InvalidOperationException("Не удалось определить пользователя.");
+    }
+
+    private RenderFragment RoleSelect(string label, int value, Action<int> set) =>
+        @<div class="col">
+            <label class="form-label">@label</label>
+            <select class="form-select" value="@value" @onchange="e => SetRole(set, e)">
+                @for (var r = 1; r <= 5; r++)
+                {
+                    var role = r;
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </div>;
+
+    private static void SetRole(Action<int> set, ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var role))
+        {
+            set(role);
+        }
+    }
+}

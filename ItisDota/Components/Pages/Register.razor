@@ -1,0 +1,135 @@
+@page "/register"
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@inject KeycloakAuthService Auth
+@inject ProfileService Profiles
+@inject NavigationManager Navigation
+
+<PageTitle>Регистрация</PageTitle>
+
+<h1 class="h3 mb-3">Регистрация</h1>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger" role="alert">@_error</div>
+}
+
+<EditForm Model="Input" OnValidSubmit="SubmitAsync" FormName="register" method="post" Enhance="false" class="col-lg-5">
+    <DataAnnotationsValidator />
+    <div class="mb-3">
+        <label class="form-label" for="register-username">Имя пользователя</label>
+        <InputText id="register-username" class="form-control" @bind-Value="Input!.Username" autocomplete="username" />
+        <ValidationMessage For="() => Input!.Username" class="text-danger" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-tg">Telegram</label>
+        <div class="input-group">
+            <span class="input-group-text tg-search-prefix" aria-hidden="true">@@</span>
+            <InputText id="register-tg" class="form-control" placeholder="username" @bind-Value="Input!.TgNick" />
+        </div>
+        <div class="form-text">Без символа @@ — он добавится автоматически.</div>
+        <ValidationMessage For="() => Input!.TgNick" class="text-danger" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label" for="register-password">Пароль</label>
+        <InputText type="password" id="register-password" class="form-control" @bind-Value="Input!.Password" autocomplete="new-password" />
+        <ValidationMessage For="() => Input!.Password" class="text-danger" />
+    </div>
+    <button type="submit" class="btn btn-primary">Зарегистрироваться</button>
+    <a class="btn btn-link" href="login" data-enhance-nav="false">Вход</a>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm]
+    private RegisterInput? Input { get; set; }
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        if (AuthenticationState is null)
+        {
+            return;
+        }
+
+        var state = await AuthenticationState;
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (HttpContext is null)
+        {
+            _error = "Не удалось зарегистрироваться.";
+            return;
+        }
+
+        var input = Input ?? new RegisterInput();
+        try
+        {
+            await Profiles.EnsureTgTagFreeAsync(input.TgNick, HttpContext.RequestAborted);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+            return;
+        }
+
+        var result = await Auth.RegisterAsync(input.Username, input.Password, HttpContext.RequestAborted);
+        if (!result.Succeeded || result.Tokens is null)
+        {
+            _error = result.Error ?? "Не удалось зарегистрироваться.";
+            return;
+        }
+
+        var keycloakUserId = result.Tokens.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (keycloakUserId is null)
+        {
+            _error = "Не удалось зарегистрироваться.";
+            return;
+        }
+
+        try
+        {
+            await Profiles.CreateAsync(
+                keycloakUserId,
+                input.Username,
+                input.TgNick,
+                HttpContext.RequestAborted);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _error = ex.Message;
+            return;
+        }
+
+        await Auth.SignInAsync(HttpContext, result.Tokens);
+        Navigation.NavigateTo("/profile", forceLoad: true);
+    }
+
+    private sealed class RegisterInput
+    {
+        [Required(ErrorMessage = "Введите имя пользователя")]
+        public string Username { get; set; } = "";
+
+        [Required(ErrorMessage = "Введите Telegram-ник")]
+        [RegularExpression("^[A-Za-z0-9_]+$", ErrorMessage = "Только латиница, цифры и подчёркивание, без символа @")]
+        public string TgNick { get; set; } = "";
+
+        [Required(ErrorMessage = "Введите пароль")]
+        public string Password { get; set; } = "";
+    }
+}

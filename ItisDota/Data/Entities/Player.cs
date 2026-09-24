@@ -3,6 +3,7 @@ namespace ItisDota.Data.Entities;
 public class Player
 {
     public int Id { get; set; }
+    public string KeycloakUserId { get; set; } = string.Empty;
     public string RealName { get; set; } = string.Empty;
     public string TgTag { get; set; } = string.Empty;
     public string MmRRange { get; set; } = string.Empty;
@@ -11,5 +12,6 @@ public class Player
     public int RolePriority3 { get; set; }
     public int RolePriority4 { get; set; }
     public int RolePriority5 { get; set; }
-    public int SelectionCount { get; set; }
+
+    public List<GroupMember> Memberships { get; set; } = new();
 }

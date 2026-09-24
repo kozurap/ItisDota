@@ -1,0 +1,155 @@
+@page "/"
+@page "/groups"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject PromptScope Scopes
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+<PageTitle>Мои группы</PageTitle>
+
+<h1 class="h3 mb-3">Мои группы</h1>
+
+@if (_profileIncomplete)
+{
+    <div class="alert alert-warning" role="alert">
+        Профиль не заполнен: укажите ПТС и приоритеты ролей, иначе вас нельзя будет учесть в промпте.
+        <a href="profile">Перейти в профиль</a>
+    </div>
+}
+@if (!string.IsNullOrEmpty(_statusMessage))
+{
+    <div class="alert alert-success" role="alert">@_statusMessage</div>
+}
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger" role="alert">@_errorMessage</div>
+}
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <h2 class="h5 mb-3">Создать группу</h2>
+        <div class="mb-3">
+            <label class="form-label" for="group-name">Название</label>
+            <input id="group-name" class="form-control" placeholder="Например: Пятница" @bind="_newGroupName" />
+        </div>
+        <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="CreateAsync">Создать</button>
+    </div>
+
+    <div class="col-lg-7">
+        <h2 class="h5 mb-3">Группы</h2>
+        @if (_groups.Count == 0)
+        {
+            <p class="text-muted">Пока нет групп. Создайте свою или попросите у друзей ссылку-приглашение.</p>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach (var group in _groups)
+                {
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <a class="fw-semibold" href="@($"groups/{group.Id}")">@group.Name</a>
+                                <div class="small text-muted">
+                                    Участников: @group.MemberCount@(group.IsOwner ? " · вы создатель" : "")
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    @onclick="() => CopyInviteAsync(group.InviteToken)">
+                                Копировать ссылку
+                            </button>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationState { get; set; }
+
+    private readonly List<GroupDto> _groups = new();
+    private IJSObjectReference? _module;
+    private string _newGroupName = string.Empty;
+    private string? _statusMessage;
+    private string? _errorMessage;
+    private bool _profileIncomplete;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось загрузить группы: " + ex.Message;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var userId = await CurrentUserIdAsync();
+        var profile = await Scopes.UseAsync<ProfileService, PlayerDto?>(s => s.GetAsync(userId));
+        _profileIncomplete = profile is null || !ProfileService.IsComplete(profile);
+
+        var groups = await Scopes.UseAsync<GroupService, IReadOnlyList<GroupDto>>(s => s.GetMyGroupsAsync(userId));
+        _groups.Clear();
+        _groups.AddRange(groups);
+    }
+
+    private async Task CreateAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _statusMessage = null;
+        _errorMessage = null;
+        _busy = true;
+        try
+        {
+            var userId = await CurrentUserIdAsync();
+            var name = _newGroupName;
+            var groupId = await Scopes.UseAsync<GroupService, int>(s => s.CreateAsync(userId, name));
+            Navigation.NavigateTo($"groups/{groupId}");
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CopyInviteAsync(string inviteToken)
+    {
+        _statusMessage = null;
+        _errorMessage = null;
+        try
+        {
+            var url = Navigation.ToAbsoluteUri($"join/{inviteToken}").ToString();
+            _module ??= await Js.InvokeAsync<IJSObjectReference>("import", "./js/players.js");
+            await _module.InvokeVoidAsync("copyText", url);
+            _statusMessage = "Ссылка скопирована: " + url;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "Не удалось скопировать ссылку: " + ex.Message;
+        }
+    }
+
+    private async Task<string> CurrentUserIdAsync()
+    {
+        var state = await AuthenticationState!;
+        return state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? throw new InvalidOperationException("Не удалось определить пользователя.");
+    }
+}
