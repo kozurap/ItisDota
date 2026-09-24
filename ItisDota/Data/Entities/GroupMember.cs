@@ -6,6 +6,7 @@ public class GroupMember
     public int GroupId { get; set; }
     public int PlayerId { get; set; }
     public int SelectionCount { get; set; }
+    public bool IsReady { get; set; }
     public DateTimeOffset JoinedAt { get; set; }
 
     public PlayerGroup? Group { get; set; }

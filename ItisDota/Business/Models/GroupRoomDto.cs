@@ -6,5 +6,6 @@ public class GroupRoomDto
     public string Name { get; set; } = string.Empty;
     public string InviteToken { get; set; } = string.Empty;
     public string PromptText { get; set; } = string.Empty;
-    public IReadOnlyList<PlayerDto> Members { get; set; } = Array.Empty<PlayerDto>();
+    public int CurrentPlayerId { get; set; }
+    public IReadOnlyList<RoomMemberDto> Members { get; set; } = Array.Empty<RoomMemberDto>();
 }

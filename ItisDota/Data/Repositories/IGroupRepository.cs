@@ -17,4 +17,5 @@ public interface IGroupRepository
         int groupId,
         IReadOnlyCollection<int> playerIds,
         CancellationToken cancellationToken = default);
+    Task SetReadyAsync(int groupId, int playerId, bool isReady, CancellationToken cancellationToken = default);
 }

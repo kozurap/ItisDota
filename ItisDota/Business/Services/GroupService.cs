@@ -113,11 +113,32 @@ public class GroupService
             PromptText = string.IsNullOrWhiteSpace(group.PromptText)
                 ? PromptService.DefaultPrompt
                 : group.PromptText,
+            CurrentPlayerId = player.Id,
             Members = members
                 .Where(m => m.Player is not null)
-                .Select(m => m.Player!.ToDto())
+                .Select(m => ToRoomMember(m))
                 .ToList()
         };
+    }
+
+    public async Task SetReadyAsync(
+        string keycloakUserId,
+        int groupId,
+        bool isReady,
+        CancellationToken cancellationToken = default)
+    {
+        var player = await RequireProfileAsync(keycloakUserId, cancellationToken);
+        if (!await _groups.IsMemberAsync(groupId, player.Id, cancellationToken))
+        {
+            throw new InvalidOperationException("Вы не состоите в этой группе.");
+        }
+
+        if (isReady && !ProfileService.IsComplete(player.ToDto()))
+        {
+            throw new InvalidOperationException("Сначала заполните профиль: укажите ПТС и приоритеты ролей.");
+        }
+
+        await _groups.SetReadyAsync(groupId, player.Id, isReady, cancellationToken);
     }
 
     public async Task SavePromptAsync(
@@ -158,6 +179,24 @@ public class GroupService
         {
             throw new InvalidOperationException("Вы не состоите в этой группе.");
         }
+    }
+
+    private static RoomMemberDto ToRoomMember(GroupMember member)
+    {
+        var player = member.Player!;
+        return new RoomMemberDto
+        {
+            Id = player.Id,
+            RealName = player.RealName,
+            TgTag = player.TgTag,
+            Mmr = player.Mmr,
+            RolePriority1 = player.RolePriority1,
+            RolePriority2 = player.RolePriority2,
+            RolePriority3 = player.RolePriority3,
+            RolePriority4 = player.RolePriority4,
+            RolePriority5 = player.RolePriority5,
+            IsReady = member.IsReady
+        };
     }
 
     private static string CreateInviteToken()

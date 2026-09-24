@@ -66,6 +66,24 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+app.MapPost("/groups/{groupId:int}/not-ready", async (int groupId, HttpContext httpContext, GroupService groups) =>
+{
+    var userId = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        await groups.SetReadyAsync(userId, groupId, false, httpContext.RequestAborted);
+    }
+    catch (InvalidOperationException)
+    {
+    }
+
+    return Results.NoContent();
+}).DisableAntiforgery();
 app.MapPost("/logout", async (HttpContext httpContext, IAntiforgery antiforgery, KeycloakAuthService auth) =>
 {
     await antiforgery.ValidateRequestAsync(httpContext);

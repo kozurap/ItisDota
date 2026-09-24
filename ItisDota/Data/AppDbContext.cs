@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
         {
             entity.HasIndex(m => new { m.GroupId, m.PlayerId }).IsUnique();
             entity.Property(m => m.SelectionCount).HasDefaultValue(0);
+            entity.Property(m => m.IsReady).HasDefaultValue(false);
             entity.HasOne(m => m.Group)
                 .WithMany(g => g.Members)
                 .HasForeignKey(m => m.GroupId)
