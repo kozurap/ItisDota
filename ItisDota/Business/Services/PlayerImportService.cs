@@ -1,7 +1,7 @@
 using System.Text.Json;
-using WebApplication1.Data.Entities;
+using ItisDota.Data.Entities;
 
-namespace WebApplication1.Business.Services;
+namespace ItisDota.Business.Services;
 
 public class PlayerImportService
 {

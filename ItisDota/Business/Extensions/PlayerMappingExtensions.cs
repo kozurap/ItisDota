@@ -1,7 +1,7 @@
-using WebApplication1.Business.Models;
-using WebApplication1.Data.Entities;
+using ItisDota.Business.Models;
+using ItisDota.Data.Entities;
 
-namespace WebApplication1.Business.Extensions;
+namespace ItisDota.Business.Extensions;
 
 public static class PlayerMappingExtensions
 {

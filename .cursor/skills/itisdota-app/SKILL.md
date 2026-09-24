@@ -17,7 +17,7 @@ description: >-
 | Business | `ItisDota/Business/Services/` | Parse JSON, upsert orchestration, prompt get/set |
 | Data | `ItisDota/Data/` | Entities, `AppDbContext`, repositories |
 
-RootNamespace / namespace: `WebApplication1`.
+RootNamespace / namespace: `ItisDota`.
 
 ## Import JSON shape
 

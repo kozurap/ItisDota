@@ -1,4 +1,4 @@
-namespace WebApplication1.Business.Models;
+namespace ItisDota.Business.Models;
 
 public class PlayerDto
 {

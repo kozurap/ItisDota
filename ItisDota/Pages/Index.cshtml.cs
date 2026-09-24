@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WebApplication1.Business.Models;
-using WebApplication1.Business.Services;
+using ItisDota.Business.Models;
+using ItisDota.Business.Services;
 
-namespace WebApplication1.Pages;
+namespace ItisDota.Pages;
 
 public class IndexModel : PageModel
 {

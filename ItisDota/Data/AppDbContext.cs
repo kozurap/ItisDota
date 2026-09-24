@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using WebApplication1.Data.Entities;
+using ItisDota.Data.Entities;
 
-namespace WebApplication1.Data;
+namespace ItisDota.Data;
 
 public class AppDbContext : DbContext
 {

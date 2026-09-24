@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using WebApplication1.Business.Services;
-using WebApplication1.Data;
-using WebApplication1.Data.Repositories;
+using ItisDota.Business.Services;
+using ItisDota.Data;
+using ItisDota.Data.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 

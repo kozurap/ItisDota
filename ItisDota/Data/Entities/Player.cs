@@ -1,4 +1,4 @@
-namespace WebApplication1.Data.Entities;
+namespace ItisDota.Data.Entities;
 
 public class Player
 {

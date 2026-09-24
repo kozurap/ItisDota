@@ -1,4 +1,4 @@
-namespace WebApplication1.Data.Repositories;
+namespace ItisDota.Data.Repositories;
 
 public interface IAppSettingRepository
 {

@@ -1,10 +1,10 @@
 using System.Text;
-using WebApplication1.Business.Extensions;
-using WebApplication1.Business.Models;
-using WebApplication1.Data.Entities;
-using WebApplication1.Data.Repositories;
+using ItisDota.Business.Extensions;
+using ItisDota.Business.Models;
+using ItisDota.Data.Entities;
+using ItisDota.Data.Repositories;
 
-namespace WebApplication1.Business.Services;
+namespace ItisDota.Business.Services;
 
 public class PromptService
 {
